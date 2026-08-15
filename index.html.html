@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F&B Financial Dashboard 2026</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (XLSX Parser) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Prompt Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Prompt', sans-serif; background-color: #f8fafc; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="p-4 md:p-8 text-slate-800">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+
+        <!-- Header & Controls -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div>
+                <div class="text-base md:text-lg font-bold tracking-widest uppercase mb-1" style="color: #8C6D46;">
+                    NAVERA PHUKET - MGALLERY COLLECTION
+                </div>
+                <h1 class="text-base md:text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line text-indigo-600"></i> F&B Performance Dashboard
+                </h1>
+                <p class="text-sm text-slate-500 mt-0.5" id="uploadStatusText">Please upload an Excel file to display data.</p>
+            </div>
+            
+            <div class="flex flex-col items-end gap-2 self-end sm:self-center">
+                <!-- Action Buttons Group (Upload & Clear) -->
+                <div class="flex items-center gap-2">
+                    <!-- Upload Button -->
+                    <div class="relative">
+                        <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="hidden" onchange="handleFileUpload(event)">
+                        <button onclick="document.getElementById('excelFileInput').click()" 
+                                title="Click to upload Excel file (.xlsx)" 
+                                class="h-[42px] px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl flex items-center gap-2 transition shadow-sm cursor-pointer text-sm font-semibold">
+                            <i class="fa-solid fa-file-excel"></i>
+                            <span>Upload Excel</span>
+                        </button>
+                    </div>
+
+                    <!-- Clear Data Button -->
+                    <button onclick="clearDashboardData()" 
+                            title="Clear all data" 
+                            class="h-[42px] px-3 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-xl flex items-center justify-center transition shadow-sm cursor-pointer">
+                        <i class="fa-solid fa-rotate-right text-sm"></i>
+                    </button>
+                </div>
+
+                <!-- MoM Comparison Badge -->
+                <span class="px-2.5 py-1 bg-indigo-100 text-indigo-900 rounded-lg text-xs font-semibold">MoM Comparison</span>
+            </div>
+        </div>
+
+        <!-- MONTH TABS (Jan - Dec) with Compare Toggle -->
+        <div>
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 pl-1 gap-2">
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    <i class="fa-solid fa-calendar-days mr-1"></i> Select Months <span id="modeSubText" class="text-slate-400 font-normal">(Single View)</span>
+                </p>
+                <div class="flex items-center gap-2">
+                    <!-- Compare Mode Toggle Button -->
+                    <button onclick="toggleCompareMode()" id="compareToggleBtn" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border border-slate-200 cursor-pointer shadow-sm">
+                        <i class="fa-solid fa-code-compare"></i> <span>Compare Mode: Off</span>
+                    </button>
+                    <span id="selectedCountBadge" class="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">Selected: 1</span>
+                </div>
+            </div>
+            <div id="monthTabsContainer" class="flex flex-nowrap overflow-x-auto gap-2 no-scrollbar pb-2">
+                <button class="whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold bg-slate-200 text-slate-400 cursor-not-allowed">Waiting for Data...</button>
+            </div>
+        </div>
+
+        <!-- OUTLET TABS -->
+        <div>
+            <p class="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider pl-1"><i class="fa-solid fa-store mr-1"></i> Select Outlet</p>
+            <div id="outletTabsContainer" class="flex flex-nowrap overflow-x-auto gap-2 no-scrollbar pb-2">
+                <button class="whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 text-white shadow-sm transition">All Outlets</button>
+            </div>
+        </div>
+
+        <!-- KPI Cards Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Total Revenue -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider" id="kpiRevTitle">Revenue (Monthly)</p>
+                            <h3 id="kpiRevenue" class="text-2xl font-bold text-slate-900 mt-1">฿0</h3>
+                        </div>
+                        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><i class="fa-solid fa-sack-dollar text-lg"></i></div>
+                    </div>
+                    <p id="kpiRevenueYTD" class="text-xs text-slate-500 font-medium mt-2 pt-2 border-t border-slate-100">YTD: ฿0</p>
+                </div>
+                <div class="mt-3 flex items-center text-xs" id="kpiRevenueDiff"><span class="text-slate-400">N/A</span></div>
+            </div>
+
+            <!-- Total Cost -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider" id="kpiCostTitle">Cost (Monthly)</p>
+                            <h3 id="kpiCost" class="text-2xl font-bold text-slate-900 mt-1">฿0</h3>
+                        </div>
+                        <div class="p-3 bg-rose-50 text-rose-600 rounded-xl"><i class="fa-solid fa-receipt text-lg"></i></div>
+                    </div>
+                    <p id="kpiCostYTD" class="text-xs text-slate-500 font-medium mt-2 pt-2 border-t border-slate-100">YTD: ฿0</p>
+                </div>
+                <div class="mt-3 flex items-center text-xs" id="kpiCostDiff"><span class="text-slate-400">N/A</span></div>
+            </div>
+
+            <!-- Gross Profit -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider" id="kpiProfitTitle">Gross Profit (Monthly)</p>
+                            <h3 id="kpiProfit" class="text-2xl font-bold text-slate-900 mt-1">฿0</h3>
+                        </div>
+                        <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl"><i class="fa-solid fa-chart-pie text-lg"></i></div>
+                    </div>
+                    <p id="kpiProfitYTD" class="text-xs text-slate-500 font-medium mt-2 pt-2 border-t border-slate-100">YTD: ฿0</p>
+                </div>
+                <div class="mt-3 flex items-center text-xs" id="kpiProfitDiff"><span class="text-slate-400">N/A</span></div>
+            </div>
+
+            <!-- Cost % -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider" id="kpiCostPctTitle">Cost % (Monthly)</p>
+                            <h3 id="kpiCostPct" class="text-2xl font-bold text-slate-900 mt-1">0%</h3>
+                        </div>
+                        <div class="p-3 bg-amber-50 text-amber-600 rounded-xl"><i class="fa-solid fa-percent text-lg"></i></div>
+                    </div>
+                    <p id="kpiCostPctYTD" class="text-xs text-slate-500 font-medium mt-2 pt-2 border-t border-slate-100">YTD Cost %: 0%</p>
+                </div>
+                <div class="mt-3 flex items-center text-xs" id="kpiCostPctDiff"><span class="text-slate-400">N/A</span></div>
+            </div>
+        </div>
+
+        <!-- BREAKDOWN TABS -->
+        <div>
+             <p class="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider pl-1"><i class="fa-solid fa-filter mr-1"></i> Cost Category</p>
+             <div class="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-2">
+                <button onclick="switchTab('all')" id="tab-all" class="tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm">
+                    <i class="fa-solid fa-layer-group"></i> Overview All
+                </button>
+                <button onclick="switchTab('food')" id="tab-food" class="tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 text-slate-600 hover:bg-slate-100">
+                    <i class="fa-solid fa-utensils text-amber-500"></i> Food
+                </button>
+                <button onclick="switchTab('beverage')" id="tab-beverage" class="tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 text-slate-600 hover:bg-slate-100">
+                    <i class="fa-solid fa-glass-water text-blue-500"></i> Beverage
+                </button>
+                <button onclick="switchTab('wine')" id="tab-wine" class="tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 text-slate-600 hover:bg-slate-100">
+                    <i class="fa-solid fa-wine-glass text-purple-500"></i> Wine
+                </button>
+                <button onclick="switchTab('other')" id="tab-other" class="tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 text-slate-600 hover:bg-slate-100">
+                    <i class="fa-solid fa-box text-slate-500"></i> Other
+                </button>
+            </div>
+        </div>
+
+        <!-- Trend Chart Card -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-8">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-slate-800" id="trendChartTitle">
+                    <i class="fa-solid fa-chart-line text-indigo-600 mr-2"></i>Monthly Revenue & Cost Trend
+                </h3>
+            </div>
+            <div class="relative h-72 w-full">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h2 id="outletChartTitle" class="text-base font-bold text-slate-800 mb-4">Revenue and Cost (THB) with Cost %</h2>
+                <div class="relative h-72"><canvas id="outletChart"></canvas></div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h2 id="categoryChartTitle" class="text-base font-bold text-slate-800 mb-4">Cost Breakdown by Category</h2>
+                <div class="relative h-72 flex items-center justify-center"><canvas id="categoryChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Detailed Data Table -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h2 id="tableTitle" class="text-base font-bold text-slate-800">Performance Details</h2>
+                <span id="tableMonthLabel" class="text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">-</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-slate-600">
+                    <thead class="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100" id="tableHead">
+                        <tr><th class="px-6 py-3">Outlet</th><th class="px-6 py-3 text-right">Revenue</th><th class="px-6 py-3 text-right">Cost</th><th class="px-6 py-3 text-right">Cost %</th></tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-100">
+                        <tr><td colspan="6" class="px-6 py-6 text-center text-slate-400">No data available. Please upload an Excel file.</td></tr>
+                    </tbody>
+                    <tfoot id="tableFoot" class="bg-indigo-50/70 border-t-2 border-indigo-200 font-bold text-slate-900"></tfoot>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let rawData = [];
+        let activeTab = 'all';
+        let activeOutlet = 'all';
+        let selectedMonths = [];
+        let isCompareMode = false; // Flag for compare mode
+        let outletChart, categoryChart, trendChart;
+
+        const monthNamesFull = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const monthNamesShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+        function formatCurrency(val) { return '฿' + (val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function formatPercent(val) { return (val || 0).toFixed(1) + '%'; }
+
+        // --- Clear Data Function ---
+        function clearDashboardData() {
+            rawData = [];
+            activeTab = 'all';
+            activeOutlet = 'all';
+            selectedMonths = [];
+            isCompareMode = false;
+            
+            document.getElementById('excelFileInput').value = '';
+            document.getElementById('uploadStatusText').innerHTML = 'Please upload an Excel file to display data.';
+            
+            document.getElementById('compareToggleBtn').className = 'px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border border-slate-200 cursor-pointer shadow-sm';
+            document.getElementById('compareToggleBtn').innerHTML = `<i class="fa-solid fa-code-compare"></i> <span>Compare Mode: Off</span>`;
+            document.getElementById('modeSubText').innerText = '(Single View)';
+
+            document.getElementById('monthTabsContainer').innerHTML = `<button class="whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold bg-slate-200 text-slate-400 cursor-not-allowed">Waiting for Data...</button>`;
+            document.getElementById('outletTabsContainer').innerHTML = `<button class="whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 text-white shadow-sm transition">All Outlets</button>`;
+            document.getElementById('selectedCountBadge').innerText = 'Selected: 1';
+
+            document.getElementById('kpiRevenue').innerText = '฿0';
+            document.getElementById('kpiCost').innerText = '฿0';
+            document.getElementById('kpiProfit').innerText = '฿0';
+            document.getElementById('kpiCostPct').innerText = '0%';
+
+            document.getElementById('kpiRevenueYTD').innerText = 'YTD: ฿0';
+            document.getElementById('kpiCostYTD').innerText = 'YTD: ฿0';
+            document.getElementById('kpiProfitYTD').innerText = 'YTD: ฿0';
+            document.getElementById('kpiCostPctYTD').innerText = 'YTD Cost %: 0%';
+            
+            document.getElementById('kpiRevenueDiff').innerHTML = '<span class="text-slate-400">N/A</span>';
+            document.getElementById('kpiCostDiff').innerHTML = '<span class="text-slate-400">N/A</span>';
+            document.getElementById('kpiProfitDiff').innerHTML = '<span class="text-slate-400">N/A</span>';
+            document.getElementById('kpiCostPctDiff').innerHTML = '<span class="text-slate-400">N/A</span>';
+
+            if (outletChart) outletChart.destroy();
+            if (categoryChart) categoryChart.destroy();
+            if (trendChart) trendChart.destroy();
+
+            document.getElementById('outletChartTitle').innerText = 'Revenue and Cost (THB) with Cost %';
+            document.getElementById('trendChartTitle').innerHTML = `<i class="fa-solid fa-chart-line text-indigo-600 mr-2"></i>Monthly Revenue & Cost Trend`;
+
+            document.getElementById('tableHead').innerHTML = `<tr><th class="px-6 py-3">Outlet</th><th class="px-6 py-3 text-right">Revenue</th><th class="px-6 py-3 text-right">Cost</th><th class="px-6 py-3 text-right">Cost %</th></tr>`;
+            document.getElementById('tableBody').innerHTML = `<tr><td colspan="6" class="px-6 py-6 text-center text-slate-400">No data available. Please upload an Excel file.</td></tr>`;
+            document.getElementById('tableFoot').innerHTML = '';
+            document.getElementById('tableMonthLabel').innerText = '-';
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.className = 'tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 text-slate-600 hover:bg-slate-100';
+            });
+            document.getElementById('tab-all').className = 'tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm';
+        }
+
+        // --- File Upload Logic ---
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            document.getElementById('uploadStatusText').innerText = `Reading file: ${file.name}...`;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.SheetNames[0];
+                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet]);
+
+                    if (jsonData && jsonData.length > 0) {
+                        rawData = jsonData.map(row => {
+                            const normRow = {};
+                            Object.keys(row).forEach(k => {
+                                const cleanK = k.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                                normRow[cleanK] = row[k];
+                            });
+
+                            let mNum = NaN;
+                            for (let key in row) {
+                                let lk = key.trim().toLowerCase();
+                                if (lk === 'month' || lk === 'monthnum') {
+                                    let val = Number(row[key]);
+                                    if (!isNaN(val)) mNum = val;
+                                }
+                            }
+
+                            let mName = '';
+                            for (let key in row) {
+                                let lk = key.trim().toLowerCase();
+                                if (lk.startsWith('month') && isNaN(row[key])) {
+                                    mName = String(row[key]).trim();
+                                }
+                            }
+
+                            if (isNaN(mNum) || mNum < 1 || mNum > 12) mNum = 1;
+                            if (!mName && mNum >= 1 && mNum <= 12) mName = monthNamesFull[mNum - 1];
+
+                            let outletVal = 'Unknown';
+                            for (let key in row) {
+                                let lk = key.trim().toLowerCase();
+                                if (lk === 'outletname' || lk === 'outlet') {
+                                    outletVal = row[key];
+                                    break;
+                                }
+                            }
+
+                            return {
+                                "Year": Number(normRow['year'] || 2026),
+                                "Month": mNum,
+                                "Month Name": mName,
+                                "Outlet Name": outletVal,
+                                "Food Revenue": Number(normRow['foodrevenuethb'] || normRow['foodrevenue'] || 0),
+                                "Beverage Revenue": Number(normRow['beveragerevenuethb'] || normRow['bevrevenue'] || normRow['beveragerevenue'] || 0),
+                                "Wine Revenue": Number(normRow['winerevenuethb'] || normRow['winerevenue'] || 0),
+                                "Other Revenue": Number(normRow['otherrevenuethb'] || normRow['otherrevenue'] || 0),
+                                "Total Revenue": Number(normRow['totalrevenuethb'] || normRow['totalrevenue'] || 0),
+                                "Food Cost": Number(normRow['foodcostthb'] || normRow['foodcost'] || 0),
+                                "Beverage Cost": Number(normRow['beveragecostthb'] || normRow['bevcost'] || normRow['beveragecost'] || 0),
+                                "Wine Cost": Number(normRow['winecostthb'] || normRow['winecost'] || 0),
+                                "Other Cost": Number(normRow['othercostthb'] || normRow['othercost'] || 0),
+                                "Total Cost": Number(normRow['totalcostthb'] || normRow['totalcost'] || 0)
+                            };
+                        });
+
+                        document.getElementById('uploadStatusText').innerHTML = `<span class="text-emerald-600 font-bold"><i class="fa-solid fa-circle-check"></i> Upload successful (${rawData.length} items)</span>`;
+                        initApp(); 
+                    } else { alert('No data found in Excel file.'); }
+                } catch (err) { 
+                    console.error(err);
+                    alert('Error reading file. Please check the format.'); 
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function initApp() {
+            const availableMonths = [...new Set(rawData.map(d => d.Month))].sort((a,b) => a - b);
+            if (availableMonths.length > 0) {
+                selectedMonths = [availableMonths[availableMonths.length - 1]];
+            }
+            populateMonthTabs();
+            populateOutletTabs();
+            updateDashboard();
+        }
+
+        function toggleCompareMode() {
+            isCompareMode = !isCompareMode;
+            const btn = document.getElementById('compareToggleBtn');
+            const subText = document.getElementById('modeSubText');
+            
+            if (isCompareMode) {
+                btn.className = 'px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-sm';
+                btn.innerHTML = `<i class="fa-solid fa-code-compare"></i> <span>Compare Mode: On</span>`;
+                subText.innerText = '(Comparison up to 3 months)';
+            } else {
+                btn.className = 'px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border border-slate-200 cursor-pointer shadow-sm';
+                btn.innerHTML = `<i class="fa-solid fa-code-compare"></i> <span>Compare Mode: Off</span>`;
+                subText.innerText = '(Single View)';
+                // If turning off, retain only the first selected month
+                if (selectedMonths.length > 1) {
+                    selectedMonths = [selectedMonths[0]];
+                }
+            }
+            populateMonthTabs();
+            updateDashboard();
+        }
+
+        function populateMonthTabs() {
+            const container = document.getElementById('monthTabsContainer');
+            const availableMonths = [...new Set(rawData.map(d => d.Month))];
+            
+            let html = '';
+            for (let m = 1; m <= 12; m++) {
+                const hasData = availableMonths.includes(m);
+                const mShort = monthNamesShort[m - 1];
+                
+                if (hasData) {
+                    const isSelected = selectedMonths.includes(m);
+                    const btnClass = isSelected 
+                        ? 'whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white shadow-sm transition' 
+                        : 'whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition';
+                    html += `<button onclick="toggleMonthTab(${m})" data-month="${m}" class="month-tab-btn ${btnClass} cursor-pointer">${mShort}</button>`;
+                } else {
+                    html += `<button disabled class="whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 text-slate-300 border border-slate-100 cursor-not-allowed">${mShort}</button>`;
+                }
+            }
+            container.innerHTML = html;
+            document.getElementById('selectedCountBadge').innerText = `Selected: ${selectedMonths.length}${isCompareMode ? '/3' : ''}`;
+        }
+
+        function populateOutletTabs() {
+            const container = document.getElementById('outletTabsContainer');
+            const outlets = [...new Set(rawData.map(d => d["Outlet Name"]))].filter(o => o);
+            
+            let html = `<button onclick="switchOutletTab('all')" data-outlet="all" class="outlet-tab-btn whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 text-white shadow-sm transition cursor-pointer">All Outlets</button>`;
+            
+            outlets.forEach(o => {
+                html += `<button onclick="switchOutletTab('${o}')" data-outlet="${o}" class="outlet-tab-btn whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition cursor-pointer">${o}</button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function toggleMonthTab(m) {
+            if (!isCompareMode) {
+                // Single view mode: clicking replaces selection
+                selectedMonths = [m];
+            } else {
+                // Compare mode: toggle selection (up to 3)
+                const idx = selectedMonths.indexOf(m);
+                if (idx > -1) {
+                    if (selectedMonths.length === 1) {
+                        alert('กรุณาเลือกไว้อย่างน้อย 1 เดือนครับ');
+                        return;
+                    }
+                    selectedMonths.splice(idx, 1);
+                } else {
+                    if (selectedMonths.length >= 3) {
+                        alert('สามารถเลือกเปรียบเทียบได้สูงสุด 3 เดือนครับ');
+                        return;
+                    }
+                    selectedMonths.push(m);
+                    selectedMonths.sort((a, b) => a - b);
+                }
+            }
+            
+            document.querySelectorAll('.month-tab-btn').forEach(btn => {
+                const btnMonth = Number(btn.dataset.month);
+                if (selectedMonths.includes(btnMonth)) {
+                    btn.className = 'month-tab-btn whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white shadow-sm transition cursor-pointer';
+                } else {
+                    btn.className = 'month-tab-btn whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition cursor-pointer';
+                }
+            });
+            
+            document.getElementById('selectedCountBadge').innerText = `Selected: ${selectedMonths.length}${isCompareMode ? '/3' : ''}`;
+            updateDashboard();
+        }
+
+        function switchTab(tabKey) {
+            activeTab = tabKey;
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.className = 'tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 text-slate-600 hover:bg-slate-100 cursor-pointer';
+            });
+            document.getElementById(`tab-${tabKey}`).className = 'tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm cursor-pointer';
+            updateDashboard();
+        }
+
+        function switchOutletTab(outlet) {
+            activeOutlet = outlet;
+            document.querySelectorAll('.outlet-tab-btn').forEach(btn => {
+                if (btn.dataset.outlet === outlet) {
+                    btn.className = 'outlet-tab-btn whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 text-white shadow-sm transition cursor-pointer';
+                } else {
+                    btn.className = 'outlet-tab-btn whitespace-nowrap px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition cursor-pointer';
+                }
+            });
+            updateDashboard();
+        }
+
+        function getFilteredDataForMonths(monthsArr) {
+            let data = rawData.filter(d => monthsArr.includes(Number(d.Month)));
+            if (activeOutlet !== 'all') {
+                data = data.filter(d => d["Outlet Name"] === activeOutlet);
+            }
+            return data;
+        }
+
+        function getYTDFilteredData(m) {
+            let data = rawData.filter(d => Number(d.Month) <= Number(m));
+            if (activeOutlet !== 'all') {
+                data = data.filter(d => d["Outlet Name"] === activeOutlet);
+            }
+            return data;
+        }
+
+        function aggregateData(data) {
+            let agg = { rev:0, cost:0, profit:0, costPct:0, foodRev:0, bevRev:0, wineRev:0, otherRev:0, foodCost:0, bevCost:0, wineCost:0, otherCost:0 };
+            data.forEach(d => {
+                agg.foodRev += d["Food Revenue"]; agg.bevRev += d["Beverage Revenue"]; agg.wineRev += d["Wine Revenue"]; agg.otherRev += d["Other Revenue"];
+                agg.foodCost += d["Food Cost"]; agg.bevCost += d["Beverage Cost"]; agg.wineCost += d["Wine Cost"]; agg.otherCost += d["Other Cost"];
+                agg.rev += d["Total Revenue"]; agg.cost += d["Total Cost"];
+            });
+            agg.profit = agg.rev - agg.cost;
+            agg.costPct = agg.rev > 0 ? (agg.cost / agg.rev) * 100 : 0;
+            return agg;
+        }
+
+        function renderDiffBadge(curr, prev, isCostPct = false) {
+            if (!prev || prev === 0) return `<span class="text-slate-400">N/A</span>`;
+            
+            let diff;
+            if (isCostPct) {
+                diff = curr - prev;
+                const isGood = diff <= 0;
+                const color = isGood ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50';
+                const icon = diff >= 0 ? '<i class="fa-solid fa-arrow-up mr-1"></i>' : '<i class="fa-solid fa-arrow-down mr-1"></i>';
+                return `<span class="px-2 py-0.5 rounded-md font-semibold ${color}">${icon}${Math.abs(diff).toFixed(2)}%</span>`;
+            } else {
+                diff = curr - prev;
+                const pct = (diff / prev) * 100;
+                const isGood = diff >= 0;
+                const color = isGood ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50';
+                const icon = diff >= 0 ? '<i class="fa-solid fa-arrow-up mr-1"></i>' : '<i class="fa-solid fa-arrow-down mr-1"></i>';
+                return `<span class="px-2 py-0.5 rounded-md font-semibold ${color}">${icon}${Math.abs(pct).toFixed(1)}%</span>`;
+            }
+        }
+
+        function updateDashboard() {
+            if (rawData.length === 0 || selectedMonths.length === 0) return;
+
+            const currData = getFilteredDataForMonths(selectedMonths);
+            const currAgg = aggregateData(currData);
+            
+            const latestSelectedMonth = Math.max(...selectedMonths);
+            const ytdData = getYTDFilteredData(latestSelectedMonth);
+            const ytdAgg = aggregateData(ytdData);
+
+            const primaryMonth = selectedMonths[selectedMonths.length - 1];
+            const prevMonth = primaryMonth - 1;
+            const prevData = getFilteredDataForMonths([prevMonth]);
+            const prevAgg = prevData.length > 0 ? aggregateData(prevData) : { rev:0, cost:0, profit:0 };
+
+            const monthLabelsStr = selectedMonths.map(m => monthNamesFull[m - 1]).join(', ');
+            document.getElementById('tableMonthLabel').innerText = monthLabelsStr;
+            
+            let dRev = currAgg.rev, dCost = currAgg.cost, pRev = prevAgg.rev, pCost = prevAgg.cost;
+            let yRev = ytdAgg.rev, yCost = ytdAgg.cost;
+
+            if (selectedMonths.length > 1) {
+                document.getElementById('kpiRevTitle').innerText = 'Revenue (Selected Total)';
+                document.getElementById('kpiCostTitle').innerText = 'Cost (Selected Total)';
+                document.getElementById('kpiProfitTitle').innerText = 'Gross Profit (Selected Total)';
+                document.getElementById('kpiCostPctTitle').innerText = 'Cost % (Selected Avg/Total)';
+            } else {
+                document.getElementById('kpiRevTitle').innerText = 'Revenue (Monthly)';
+                document.getElementById('kpiCostTitle').innerText = 'Cost (Monthly)';
+                document.getElementById('kpiProfitTitle').innerText = 'Gross Profit (Monthly)';
+                document.getElementById('kpiCostPctTitle').innerText = 'Cost % (Monthly)';
+            }
+
+            if (activeTab === 'food') { 
+                dRev = currAgg.foodRev; dCost = currAgg.foodCost; pRev = prevAgg.foodRev || 0; pCost = prevAgg.foodCost || 0; 
+                yRev = ytdAgg.foodRev; yCost = ytdAgg.foodCost;
+            } else if (activeTab === 'beverage') { 
+                dRev = currAgg.bevRev; dCost = currAgg.bevCost; pRev = prevAgg.bevRev || 0; pCost = prevAgg.bevCost || 0; 
+                yRev = ytdAgg.bevRev; yCost = ytdAgg.bevCost;
+            } else if (activeTab === 'wine') { 
+                dRev = currAgg.wineRev; dCost = currAgg.wineCost; pRev = prevAgg.wineRev || 0; pCost = prevAgg.wineCost || 0; 
+                yRev = ytdAgg.wineRev; yCost = ytdAgg.wineCost;
+            } else if (activeTab === 'other') { 
+                dRev = currAgg.otherRev; dCost = currAgg.otherCost; pRev = prevAgg.otherRev || 0; pCost = prevAgg.otherCost || 0; 
+                yRev = ytdAgg.otherRev; yCost = ytdAgg.otherCost;
+            }
+
+            const dProf = dRev - dCost, dPct = dRev > 0 ? (dCost / dRev) * 100 : 0;
+            const pPct = pRev > 0 ? (pCost / pRev) * 100 : 0;
+            const yProf = yRev - yCost, yPct = yRev > 0 ? (yCost / yRev) * 100 : 0;
+
+            document.getElementById('kpiRevenue').innerText = formatCurrency(dRev);
+            document.getElementById('kpiCost').innerText = formatCurrency(dCost);
+            document.getElementById('kpiProfit').innerText = formatCurrency(dProf);
+            document.getElementById('kpiCostPct').innerText = formatPercent(dPct);
+
+            document.getElementById('kpiRevenueYTD').innerText = 'YTD: ' + formatCurrency(yRev);
+            document.getElementById('kpiCostYTD').innerText = 'YTD: ' + formatCurrency(yCost);
+            document.getElementById('kpiProfitYTD').innerText = 'YTD: ' + formatCurrency(yProf);
+            document.getElementById('kpiCostPctYTD').innerText = 'YTD Cost %: ' + formatPercent(yPct);
+
+            if (selectedMonths.length === 1) {
+                document.getElementById('kpiRevenueDiff').innerHTML = renderDiffBadge(dRev, pRev, false);
+                document.getElementById('kpiCostDiff').innerHTML = renderDiffBadge(dCost, pCost, false);
+                document.getElementById('kpiProfitDiff').innerHTML = renderDiffBadge(dProf, pRev - pCost, false);
+                document.getElementById('kpiCostPctDiff').innerHTML = renderDiffBadge(dPct, pPct, true);
+            } else {
+                document.getElementById('kpiRevenueDiff').innerHTML = `<span class="text-indigo-600 font-semibold"><i class="fa-solid fa-check mr-1"></i> Multi-month comparison mode</span>`;
+                document.getElementById('kpiCostDiff').innerHTML = `<span class="text-indigo-600 font-semibold"><i class="fa-solid fa-check mr-1"></i> Multi-month comparison mode</span>`;
+                document.getElementById('kpiProfitDiff').innerHTML = `<span class="text-indigo-600 font-semibold"><i class="fa-solid fa-check mr-1"></i> Multi-month comparison mode</span>`;
+                document.getElementById('kpiCostPctDiff').innerHTML = `<span class="text-indigo-600 font-semibold"><i class="fa-solid fa-check mr-1"></i> Multi-month comparison mode</span>`;
+            }
+
+            renderOutletChart(selectedMonths, activeTab);
+            renderCategoryChart(currAgg, activeTab);
+            renderTrendChart(activeTab);
+            renderTable(selectedMonths, activeTab);
+        }
+
+        function renderOutletChart(monthsArr, tab) {
+            if (outletChart) outletChart.destroy();
+            const ctx = document.getElementById('outletChart').getContext('2d');
+
+            if (monthsArr.length === 1) {
+                const mData = rawData.filter(d => Number(d.Month) === monthsArr[0]);
+                const validData = mData.filter(d => (d["Total Revenue"] > 0 || d["Total Cost"] > 0));
+                const labels = validData.map(d => d["Outlet Name"]);
+                let rev = [], cost = [], costPct = [];
+
+                validData.forEach(d => {
+                    let r = 0, c = 0;
+                    if (tab === 'food') { r = d["Food Revenue"]; c = d["Food Cost"]; }
+                    else if (tab === 'beverage') { r = d["Beverage Revenue"]; c = d["Beverage Cost"]; }
+                    else if (tab === 'wine') { r = d["Wine Revenue"]; c = d["Wine Cost"]; }
+                    else if (tab === 'other') { r = d["Other Revenue"]; c = d["Other Cost"]; }
+                    else { r = d["Total Revenue"]; c = d["Total Cost"]; }
+
+                    rev.push(r);
+                    cost.push(c);
+                    costPct.push(r > 0 ? Number(((c / r) * 100).toFixed(1)) : 0);
+                });
+
+                document.getElementById('outletChartTitle').innerText = activeOutlet === 'all' 
+                    ? `Revenue and Cost by Outlet (${monthNamesFull[monthsArr[0]-1]})` 
+                    : `Revenue and Cost - ${activeOutlet} (${monthNamesFull[monthsArr[0]-1]})`;
+
+                outletChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            { label: 'Revenue', data: rev, backgroundColor: '#6366f1', borderRadius: 4, yAxisID: 'y' },
+                            { label: 'Cost', data: cost, backgroundColor: '#f43f5e', borderRadius: 4, yAxisID: 'y' },
+                            { label: 'Cost %', data: costPct, type: 'line', borderColor: '#f59e0b', backgroundColor: '#f59e0b', borderWidth: 2, pointRadius: 5, yAxisID: 'y1' }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { type: 'linear', display: true, position: 'left', beginAtZero: true, ticks: { callback: function(value) { return '฿' + value.toLocaleString(); } } },
+                            y1: { type: 'linear', display: true, position: 'right', beginAtZero: true, max: 100, grid: { drawOnChartArea: false }, ticks: { callback: function(value) { return value + '%'; } } }
+                        }
+                    }
+                });
+            } else {
+                const outlets = activeOutlet === 'all' ? [...new Set(rawData.map(d => d["Outlet Name"]))] : [activeOutlet];
+                const colors = ['#6366f1', '#10b981', '#f59e0b'];
+
+                const datasets = monthsArr.map((m, idx) => {
+                    const monthData = rawData.filter(d => Number(d.Month) === m);
+                    const dataVals = outlets.map(o => {
+                        const row = monthData.find(d => d["Outlet Name"] === o);
+                        if (!row) return 0;
+                        if (tab === 'food') return row["Food Revenue"];
+                        if (tab === 'beverage') return row["Beverage Revenue"];
+                        if (tab === 'wine') return row["Wine Revenue"];
+                        if (tab === 'other') return row["Other Revenue"];
+                        return row["Total Revenue"];
+                    });
+
+                    return {
+                        label: monthNamesFull[m - 1] + ' Revenue',
+                        data: dataVals,
+                        backgroundColor: colors[idx % colors.length],
+                        borderRadius: 4
+                    };
+                });
+
+                document.getElementById('outletChartTitle').innerText = `Multi-Month Revenue Comparison (${monthsArr.map(m => monthNamesShort[m-1]).join(', ')})`;
+
+                outletChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels: outlets, datasets: datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, ticks: { callback: function(value) { return '฿' + value.toLocaleString(); } } }
+                        }
+                    }
+                });
+            }
+        }
+
+        function renderCategoryChart(currAgg, tab) {
+            if (categoryChart) categoryChart.destroy();
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            
+            let labels = ['Food Cost', 'Beverage Cost', 'Wine Cost', 'Other Cost'];
+            let data = [currAgg.foodCost, currAgg.bevCost, currAgg.wineCost, currAgg.otherCost];
+            let colors = ['#f59e0b', '#3b82f6', '#8b5cf6', '#64748b'];
+
+            if (tab !== 'all') {
+                let rev = currAgg[`${tab}Rev`] || 0, cost = currAgg[`${tab}Cost`] || 0;
+                labels = [`${tab.toUpperCase()} Cost`, `${tab.toUpperCase()} Margin`];
+                data = [cost, Math.max(0, rev - cost)];
+                colors = ['#f43f5e', '#10b981'];
+            }
+
+            categoryChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data, backgroundColor: colors }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderTrendChart(tab) {
+            // Filter months based on compare mode flag
+            const months = isCompareMode 
+                ? [...selectedMonths].sort((a, b) => a - b)
+                : [...new Set(rawData.map(d => d.Month))].sort((a, b) => a - b);
+
+            let labels = [];
+            let revData = [];
+            let costData = [];
+
+            months.forEach(m => {
+                labels.push(monthNamesFull[m - 1]);
+
+                let monthFiltered = rawData.filter(d => Number(d.Month) === Number(m));
+                if (activeOutlet !== 'all') {
+                    monthFiltered = monthFiltered.filter(d => d["Outlet Name"] === activeOutlet);
+                }
+
+                let mRev = 0, mCost = 0;
+                monthFiltered.forEach(d => {
+                    if (tab === 'food') { mRev += d["Food Revenue"]; mCost += d["Food Cost"]; }
+                    else if (tab === 'beverage') { mRev += d["Beverage Revenue"]; mCost += d["Beverage Cost"]; }
+                    else if (tab === 'wine') { mRev += d["Wine Revenue"]; mCost += d["Wine Cost"]; }
+                    else if (tab === 'other') { mRev += d["Other Revenue"]; mCost += d["Other Cost"]; }
+                    else { mRev += d["Total Revenue"]; mCost += d["Total Cost"]; }
+                });
+
+                revData.push(mRev);
+                costData.push(mCost);
+            });
+
+            if (trendChart) trendChart.destroy();
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            document.getElementById('trendChartTitle').innerHTML = `<i class="fa-solid fa-chart-line text-indigo-600 mr-2"></i>Monthly Revenue & Cost Trend (${tab.toUpperCase()})`;
+
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Revenue', data: revData, borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderWidth: 3, fill: true, tension: 0.3 },
+                        { label: 'Cost', data: costData, borderColor: '#f43f5e', backgroundColor: 'rgba(244, 63, 94, 0.1)', borderWidth: 3, fill: true, tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return '฿' + value.toLocaleString(); } } } }
+                }
+            });
+        }
+
+        function renderTable(monthsArr, tab) {
+            const tbody = document.getElementById('tableBody');
+            const thead = document.getElementById('tableHead');
+            
+            const catName = tab === 'all' ? 'Total' : tab.charAt(0).toUpperCase() + tab.slice(1);
+            
+            if (monthsArr.length === 1) {
+                const m = monthsArr[0];
+                const currData = rawData.filter(d => Number(d.Month) === m && (activeOutlet === 'all' || d["Outlet Name"] === activeOutlet));
+                const prevData = rawData.filter(d => Number(d.Month) === m - 1 && (activeOutlet === 'all' || d["Outlet Name"] === activeOutlet));
+
+                thead.innerHTML = `
+                    <tr>
+                        <th class="px-6 py-3">Outlet</th>
+                        <th class="px-6 py-3 text-right">${catName} Revenue</th>
+                        <th class="px-6 py-3 text-right">MoM Rev %</th>
+                        <th class="px-6 py-3 text-right">${catName} Cost</th>
+                        <th class="px-6 py-3 text-right">MoM Cost %</th>
+                        <th class="px-6 py-3 text-right">Cost %</th>
+                    </tr>`;
+                tbody.innerHTML = '';
+                
+                let tRev = 0, tCost = 0, pRevTotal = 0, pCostTotal = 0;
+                
+                currData.forEach(d => {
+                    let r = d["Total Revenue"], c = d["Total Cost"];
+                    if (tab === 'food') { r = d["Food Revenue"]; c = d["Food Cost"]; }
+                    else if (tab === 'beverage') { r = d["Beverage Revenue"]; c = d["Beverage Cost"]; }
+                    else if (tab === 'wine') { r = d["Wine Revenue"]; c = d["Wine Cost"]; }
+                    else if (tab === 'other') { r = d["Other Revenue"]; c = d["Other Cost"]; }
+                    
+                    tRev += r; tCost += c;
+                    
+                    let prevOutlet = prevData.find(p => p["Outlet Name"] === d["Outlet Name"]);
+                    let pr = 0, pc = 0;
+                    if (prevOutlet) {
+                        if (tab === 'food') { pr = prevOutlet["Food Revenue"]; pc = prevOutlet["Food Cost"]; }
+                        else if (tab === 'beverage') { pr = prevOutlet["Beverage Revenue"]; pc = prevOutlet["Beverage Cost"]; }
+                        else if (tab === 'wine') { pr = prevOutlet["Wine Revenue"]; pc = prevOutlet["Wine Cost"]; }
+                        else if (tab === 'other') { pr = prevOutlet["Other Revenue"]; pc = prevOutlet["Other Cost"]; }
+                        else { pr = prevOutlet["Total Revenue"]; pc = prevOutlet["Total Cost"]; }
+                    }
+                    pRevTotal += pr;
+                    pCostTotal += pc;
+
+                    let revMomHtml = `<span class="text-slate-400">N/A</span>`;
+                    if (prevOutlet && pr > 0) {
+                        let diffRev = r - pr;
+                        let pctRev = (diffRev / pr) * 100;
+                        let colorRev = diffRev >= 0 ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50';
+                        let iconRev = diffRev >= 0 ? '<i class="fa-solid fa-arrow-up mr-1"></i>' : '<i class="fa-solid fa-arrow-down mr-1"></i>';
+                        revMomHtml = `<span class="px-1.5 py-0.5 rounded text-xs font-semibold ${colorRev}">${iconRev}${Math.abs(pctRev).toFixed(1)}%</span>`;
+                    }
+
+                    let costMomHtml = `<span class="text-slate-400">N/A</span>`;
+                    if (prevOutlet && pc > 0) {
+                        let diffCost = c - pc;
+                        let pctCost = (diffCost / pc) * 100;
+                        let colorCost = diffCost <= 0 ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50';
+                        let iconCost = diffCost >= 0 ? '<i class="fa-solid fa-arrow-up mr-1"></i>' : '<i class="fa-solid fa-arrow-down mr-1"></i>';
+                        costMomHtml = `<span class="px-1.5 py-0.5 rounded text-xs font-semibold ${colorCost}">${iconCost}${Math.abs(pctCost).toFixed(1)}%</span>`;
+                    }
+
+                    tbody.innerHTML += `<tr>
+                        <td class="px-6 py-4 font-semibold text-slate-900">${d["Outlet Name"]}</td>
+                        <td class="px-6 py-4 text-right font-medium">${formatCurrency(r)}</td>
+                        <td class="px-6 py-4 text-right">${revMomHtml}</td>
+                        <td class="px-6 py-4 text-right text-slate-600">${formatCurrency(c)}</td>
+                        <td class="px-6 py-4 text-right">${costMomHtml}</td>
+                        <td class="px-6 py-4 text-right font-semibold text-indigo-600">${formatPercent(r>0? (c/r)*100 : 0)}</td>
+                    </tr>`;
+                });
+
+                let tRevMomHtml = `<span class="text-slate-400">N/A</span>`;
+                if (pRevTotal > 0) {
+                    let diffTotalRev = tRev - pRevTotal;
+                    let pctTotalRev = (diffTotalRev / pRevTotal) * 100;
+                    let colorTotalRev = diffTotalRev >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50';
+                    let iconTotalRev = diffTotalRev >= 0 ? '<i class="fa-solid fa-arrow-up mr-1"></i>' : '<i class="fa-solid fa-arrow-down mr-1"></i>';
+                    tRevMomHtml = `<span class="px-1.5 py-0.5 rounded text-xs font-semibold ${colorTotalRev}">${iconTotalRev}${Math.abs(pctTotalRev).toFixed(1)}%</span>`;
+                }
+
+                let tCostMomHtml = `<span class="text-slate-400">N/A</span>`;
+                if (pCostTotal > 0) {
+                    let diffTotalCost = tCost - pCostTotal;
+                    let pctTotalCost = (diffTotalCost / pCostTotal) * 100;
+                    let colorTotalCost = diffTotalCost <= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50';
+                    let iconTotalCost = diffTotalCost >= 0 ? '<i class="fa-solid fa-arrow-up mr-1"></i>' : '<i class="fa-solid fa-arrow-down mr-1"></i>';
+                    tCostMomHtml = `<span class="px-1.5 py-0.5 rounded text-xs font-semibold ${colorTotalCost}">${iconTotalCost}${Math.abs(pctTotalCost).toFixed(1)}%</span>`;
+                }
+
+                document.getElementById('tableFoot').innerHTML = `<tr>
+                    <td class="px-6 py-4 uppercase font-bold">Total</td>
+                    <td class="px-6 py-4 text-right text-indigo-700 font-bold">${formatCurrency(tRev)}</td>
+                    <td class="px-6 py-4 text-right">${tRevMomHtml}</td>
+                    <td class="px-6 py-4 text-right text-rose-700 font-bold">${formatCurrency(tCost)}</td>
+                    <td class="px-6 py-4 text-right">${tCostMomHtml}</td>
+                    <td class="px-6 py-4 text-right text-indigo-700 font-bold">${formatPercent(tRev>0? (tCost/tRev)*100 : 0)}</td>
+                </tr>`;
+            } else {
+                let headerHtml = `<tr><th class="px-6 py-3">Outlet</th>`;
+                monthsArr.forEach(m => {
+                    headerHtml += `<th class="px-6 py-3 text-right">${monthNamesShort[m-1]} Rev</th><th class="px-6 py-3 text-right">${monthNamesShort[m-1]} Cost</th><th class="px-6 py-3 text-right">${monthNamesShort[m-1]} % Cost</th>`;
+                });
+                headerHtml += `</tr>`;
+                thead.innerHTML = headerHtml;
+                tbody.innerHTML = '';
+
+                const outlets = activeOutlet === 'all' ? [...new Set(rawData.map(d => d["Outlet Name"]))] : [activeOutlet];
+                
+                let totalsByMonth = {};
+                monthsArr.forEach(m => { totalsByMonth[m] = { rev: 0, cost: 0 }; });
+
+                outlets.forEach(o => {
+                    let rowHtml = `<td class="px-6 py-4 font-semibold text-slate-900">${o}</td>`;
+                    monthsArr.forEach(m => {
+                        const mData = rawData.find(d => Number(d.Month) === m && d["Outlet Name"] === o);
+                        let r = 0, c = 0;
+                        if (mData) {
+                            if (tab === 'food') { r = mData["Food Revenue"]; c = mData["Food Cost"]; }
+                            else if (tab === 'beverage') { r = mData["Beverage Revenue"]; c = mData["Beverage Cost"]; }
+                            else if (tab === 'wine') { r = mData["Wine Revenue"]; c = mData["Wine Cost"]; }
+                            else if (tab === 'other') { r = mData["Other Revenue"]; c = mData["Other Cost"]; }
+                            else { r = mData["Total Revenue"]; c = mData["Total Cost"]; }
+                        }
+                        totalsByMonth[m].rev += r;
+                        totalsByMonth[m].cost += c;
+                        let cPct = r > 0 ? (c / r) * 100 : 0;
+                        rowHtml += `<td class="px-6 py-4 text-right font-medium">${formatCurrency(r)}</td><td class="px-6 py-4 text-right text-slate-600">${formatCurrency(c)}</td><td class="px-6 py-4 text-right font-semibold text-indigo-600">${formatPercent(cPct)}</td>`;
+                    });
+                    tbody.innerHTML += `<tr>${rowHtml}</tr>`;
+                });
+
+                let footHtml = `<td class="px-6 py-4 uppercase font-bold">Total</td>`;
+                monthsArr.forEach(m => {
+                    let totalCPct = totalsByMonth[m].rev > 0 ? (totalsByMonth[m].cost / totalsByMonth[m].rev) * 100 : 0;
+                    footHtml += `<td class="px-6 py-4 text-right text-indigo-700 font-bold">${formatCurrency(totalsByMonth[m].rev)}</td><td class="px-6 py-4 text-right text-rose-700 font-bold">${formatCurrency(totalsByMonth[m].cost)}</td><td class="px-6 py-4 text-right text-indigo-700 font-bold">${formatPercent(totalCPct)}</td>`;
+                });
+                document.getElementById('tableFoot').innerHTML = `<tr>${footHtml}</tr>`;
+            }
+        }
+    </script>
+</body>
+</html>
